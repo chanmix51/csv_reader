@@ -1,6 +1,8 @@
 use rust_decimal::Decimal;
 use thiserror::Error;
 
+use super::ClientId;
+
 /// Type alias for transaction identifiers.
 pub type TxId = u32;
 
@@ -123,4 +125,37 @@ impl TransactionKind {
     pub fn chargeback(tx_id: TxId) -> Self {
         Self::Chargeback(tx_id)
     }
+}
+
+/// A Transaction represents a single transaction that happened on the exchange.
+/// A Transaction has already modified the ledgers and it cannot be modified or
+/// deleted. The transaction identifier is unique. Unexpected behavior can
+/// happen if two different transactions have the same identifier.
+/// If a transaction relates to another transaction, the identifier is valid and
+/// the related transaction can be found.
+#[derive(Debug, Clone)]
+pub struct Transaction {
+    /// The unique identifier of the transaction.
+    pub tx_id: TxId,
+
+    /// The client identifier that made the transaction.
+    pub client_id: ClientId,
+
+    /// The transaction kind.
+    pub kind: TransactionKind,
+}
+
+/// TransactionOrder represents the order of a transaction in the CSV file. It
+/// is a wish emitted by a client that Transaction should be processed in the
+/// given order. This transaction has not yet been validated against the account.
+#[derive(Debug, Clone)]
+pub struct TransactionOrder {
+    /// The unique identifier of the transaction.
+    pub tx_id: TxId,
+
+    /// The client identifier that made the order.
+    pub client_id: ClientId,
+
+    /// The transaction kind.
+    pub kind: TransactionKind,
 }
