@@ -4,8 +4,13 @@ use thiserror::Error;
 
 use crate::Result;
 
+/// The client ID type alias.
+pub type ClientId = u16;
+
+/// The error type for account operations.
 #[derive(Debug, Error)]
 pub enum AccountError {
+    /// Insufficient available funds to perform the operation.
     #[error("Insufficient available funds: available {available}, requested {requested}.")]
     InsufficientAvailableFunds {
         /// The available funds in the account.
@@ -14,6 +19,7 @@ pub enum AccountError {
         /// The withdraw amount requested
         requested: Decimal,
     },
+    /// Insufficient held funds to perform the operation.
     #[error("Insufficient held funds: held {held}, requested {requested}.")]
     InsufficientHeldFunds {
         /// The held funds in the account.
@@ -22,6 +28,7 @@ pub enum AccountError {
         /// The resolve amount requested
         requested: Decimal,
     },
+    /// Operation cannot be performed because the account is locked.
     #[error("Account is locked.")]
     AccountLocked,
 }
@@ -30,14 +37,25 @@ pub enum AccountError {
 /// of funds held by the account.
 #[derive(Debug, Default)]
 pub struct Account {
-    pub client_id: u16,
+    /// The client ID of the account.
+    pub client_id: ClientId,
+
+    /// The available funds in the account.
     pub available: Decimal,
+
+    /// The held funds in the account.
     pub held: Decimal,
+
+    /// The total funds in the account.
     pub total: Decimal,
+
+    /// The lock status of the account.
     pub locked: bool,
 }
 
 impl Account {
+    /// Creates a new account with the given client ID. The account is initialized
+    /// with zero funds and unlocked.
     pub fn new(client_id: u16) -> Self {
         Account {
             client_id,
