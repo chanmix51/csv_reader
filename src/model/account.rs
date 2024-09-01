@@ -35,7 +35,7 @@ pub enum AccountError {
 
 /// It represents the state of a client account. It contains the different types
 /// of funds held by the account.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Account {
     /// The client ID of the account.
     pub client_id: ClientId,
@@ -313,6 +313,9 @@ mod tests {
         assert_eq!(account.available, Decimal::new(100, 0));
         assert_eq!(account.held, Decimal::ZERO);
         assert_eq!(account.total, Decimal::new(100, 0));
+
+        account.deposit(Decimal::TEN).unwrap();
+        assert_eq!(account.available, Decimal::new(110, 0));
     }
 
     #[test]

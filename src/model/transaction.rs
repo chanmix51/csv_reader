@@ -24,7 +24,7 @@ pub enum TransactionKind {
 
     /// Chargeback a transaction. The identifier refers to a transaction that was
     /// under dispute by ID.
-    Chargeback(TxId),
+    ChargeBack(TxId),
 }
 
 /// Error type for transaction kind creation.
@@ -123,7 +123,7 @@ impl TransactionKind {
     /// assert_eq!(chargeback, TransactionKind::Chargeback(1));
     /// ```
     pub fn chargeback(tx_id: TxId) -> Self {
-        Self::Chargeback(tx_id)
+        Self::ChargeBack(tx_id)
     }
 }
 
@@ -133,7 +133,7 @@ impl TransactionKind {
 /// happen if two different transactions have the same identifier.
 /// If a transaction relates to another transaction, the identifier is valid and
 /// the related transaction can be found.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Transaction {
     /// The unique identifier of the transaction.
     pub tx_id: TxId,
@@ -158,4 +158,14 @@ pub struct TransactionOrder {
 
     /// The transaction kind.
     pub kind: TransactionKind,
+}
+
+impl From<TransactionOrder> for Transaction {
+    fn from(order: TransactionOrder) -> Self {
+        Self {
+            tx_id: order.tx_id,
+            client_id: order.client_id,
+            kind: order.kind,
+        }
+    }
 }
