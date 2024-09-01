@@ -1,3 +1,6 @@
+use log::info;
+
 fn main() {
-    println!("Hello, world!");
+    env_logger::init();
+    info!("Starting CSV_READER version {}", env!("CARGO_PKG_VERSION"));
 }

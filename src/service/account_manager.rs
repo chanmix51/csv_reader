@@ -43,12 +43,12 @@ pub enum TransactionError {
 pub struct AccountManager {
     /// Storing the internal state in one place protected by a read-write lock.
     /// This prevent some actors to read inconsistent data.
-    store: RwLock<Box<dyn AccountStorage>>,
+    store: RwLock<Box<dyn AccountStorage + Sync + Send>>,
 }
 
 impl AccountManager {
     /// Create a new account manager.
-    pub fn new(storage: impl AccountStorage + 'static) -> Self {
+    pub fn new(storage: impl AccountStorage + Sync + Send + 'static) -> Self {
         Self {
             store: RwLock::new(Box::new(storage)),
         }

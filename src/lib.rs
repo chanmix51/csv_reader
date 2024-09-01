@@ -4,6 +4,7 @@
 //! This library provides elements to read transaction data from a CSV file and
 //! compute accounts from it.
 
+pub mod actor;
 pub mod adapter;
 pub mod model;
 pub mod service;
