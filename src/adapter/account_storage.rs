@@ -18,7 +18,7 @@ pub trait AccountStorage {
     fn get_transaction(&self, tx_id: &TxId) -> Option<Transaction>;
 
     /// Check if a transaction is disputed.
-    fn is_disputed(&self, tx_id: &TxId) -> Option<bool>;
+    fn is_disputed(&self, tx_id: &TxId) -> bool;
 
     /// Add or update an account.
     fn store_account(&mut self, account: Account) -> Result<Account>;
@@ -49,10 +49,8 @@ impl AccountStorage for InMemoryAccountStorage {
         self.transactions.get(tx_id).cloned()
     }
 
-    fn is_disputed(&self, tx_id: &TxId) -> Option<bool> {
-        self.transactions
-            .get(tx_id)
-            .map(|_| self.disputed.contains(tx_id))
+    fn is_disputed(&self, tx_id: &TxId) -> bool {
+        self.disputed.contains(tx_id)
     }
 
     fn store_account(&mut self, account: Account) -> Result<Account> {
@@ -136,8 +134,7 @@ mod in_memory_storage_tests {
     fn test_set_disputed() {
         let mut storage = InMemoryAccountStorage::default();
 
-        // Non existing transaction returns None
-        assert!(storage.is_disputed(&1).is_none());
+        assert!(!storage.is_disputed(&1));
 
         let transaction: Transaction = TransactionOrder {
             tx_id: 1,
@@ -148,22 +145,22 @@ mod in_memory_storage_tests {
         storage.transactions.insert(1, transaction.clone());
 
         // By default, transactions are not disputed
-        assert!(!storage.is_disputed(&1).unwrap());
+        assert!(!storage.is_disputed(&1));
 
         storage.set_disputed(1, true).unwrap();
 
         // Transaction is now disputed
-        assert!(storage.is_disputed(&1).unwrap());
+        assert!(storage.is_disputed(&1));
 
         storage.set_disputed(1, true).unwrap();
 
         // Transaction is still disputed
-        assert!(storage.is_disputed(&1).unwrap());
+        assert!(storage.is_disputed(&1));
 
         storage.set_disputed(1, false).unwrap();
 
         // Transaction is not disputed anymore
-        assert!(!storage.is_disputed(&1).unwrap());
+        assert!(!storage.is_disputed(&1));
     }
 
     #[test]

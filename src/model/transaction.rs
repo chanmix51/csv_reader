@@ -120,7 +120,7 @@ impl TransactionKind {
     ///
     /// // create a chargeback transaction
     /// let chargeback = TransactionKind::chargeback(1);
-    /// assert_eq!(chargeback, TransactionKind::Chargeback(1));
+    /// assert_eq!(chargeback, TransactionKind::ChargeBack(1));
     /// ```
     pub fn chargeback(tx_id: TxId) -> Self {
         Self::ChargeBack(tx_id)

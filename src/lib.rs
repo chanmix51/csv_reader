@@ -6,6 +6,7 @@
 
 pub mod adapter;
 pub mod model;
+pub mod service;
 
 /// Global type alias for the result type used in this library.
 pub type Result<T> = anyhow::Result<T>;
