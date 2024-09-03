@@ -11,19 +11,19 @@ pub struct Accountant {
     /// The account manager service.
     account_manager: Arc<AccountManager>,
 
-    /// The order channel to receive transaction orders.
-    order_channel: Receiver<TransactionOrder>,
+    /// The order channel receiver to read transaction orders.
+    order_receiver: Receiver<TransactionOrder>,
 }
 
 impl Accountant {
     /// Create a new accountant actor.
     pub fn new(
         account_manager: Arc<AccountManager>,
-        order_channel: Receiver<TransactionOrder>,
+        order_receiver: Receiver<TransactionOrder>,
     ) -> Self {
         Self {
             account_manager,
-            order_channel,
+            order_receiver,
         }
     }
 
@@ -33,7 +33,7 @@ impl Accountant {
     /// The actor will stop when the order channel is closed which means that no
     /// more orders will be received.
     pub fn run(&self) {
-        for order in self.order_channel.iter() {
+        for order in self.order_receiver.iter() {
             if let Err(error) = self.account_manager.process_order(order) {
                 log::info!("Error processing order: {}", error);
             }
@@ -65,8 +65,24 @@ mod tests {
             kind: TransactionKind::Deposit(Decimal::ONE_HUNDRED),
         })
         .unwrap();
+        // Dispute a non-existing transaction
+        // This should not fail but log an error
         tx.send(TransactionOrder {
             tx_id: 2,
+            client_id: 2,
+            kind: TransactionKind::Dispute(3),
+        })
+        .unwrap();
+        tx.send(TransactionOrder {
+            tx_id: 3,
+            client_id: 1,
+            kind: TransactionKind::Withdrawal(Decimal::ONE),
+        })
+        .unwrap();
+        // Send twice the same transaction
+        // It must not be taken into account
+        tx.send(TransactionOrder {
+            tx_id: 3,
             client_id: 1,
             kind: TransactionKind::Withdrawal(Decimal::ONE),
         })
@@ -74,6 +90,7 @@ mod tests {
         drop(tx);
         handler.join().unwrap();
         let account = account_manager.get_account(1).unwrap();
+
         assert_eq!(account.available, Decimal::ONE_HUNDRED - Decimal::ONE);
     }
 }

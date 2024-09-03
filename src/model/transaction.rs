@@ -1,4 +1,5 @@
 use rust_decimal::Decimal;
+use serde::Deserialize;
 use thiserror::Error;
 
 use super::ClientId;
@@ -33,6 +34,10 @@ pub enum TransactionKindError {
     /// Amounts for transactions must be positive.
     #[error("Transaction amount must be strictily positive ({0} given)")]
     NegativeOrZeroAmount(Decimal),
+
+    /// The transaction kind is unknown.
+    #[error("Unknown transaction kind: '{0}'")]
+    UnknownKind(String),
 }
 
 impl TransactionKind {
@@ -167,5 +172,42 @@ impl From<TransactionOrder> for Transaction {
             client_id: order.client_id,
             kind: order.kind,
         }
+    }
+}
+
+/// Transaction entity read from CSV file.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CSVTransactionEntity {
+    /// The transaction kind.
+    pub r#type: String,
+
+    /// The client identifier that made the transaction.
+    pub client: ClientId,
+
+    /// The unique identifier of the transaction.
+    pub tx: TxId,
+
+    /// The amount of the transaction.
+    pub amount: Decimal,
+}
+
+impl TryFrom<CSVTransactionEntity> for TransactionOrder {
+    type Error = TransactionKindError;
+
+    fn try_from(entity: CSVTransactionEntity) -> Result<Self, Self::Error> {
+        let kind = match entity.r#type.as_str().to_lowercase().as_str() {
+            "deposit" => TransactionKind::deposit(entity.amount)?,
+            "withdrawal" => TransactionKind::withdrawal(entity.amount)?,
+            "dispute" => TransactionKind::dispute(entity.tx),
+            "resolve" => TransactionKind::resolve(entity.tx),
+            "chargeback" => TransactionKind::chargeback(entity.tx),
+            val => return Err(TransactionKindError::UnknownKind(val.to_owned())),
+        };
+
+        Ok(Self {
+            tx_id: entity.tx,
+            client_id: entity.client,
+            kind,
+        })
     }
 }
