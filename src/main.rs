@@ -1,4 +1,8 @@
-use std::{io::BufReader, path::PathBuf, sync::Arc};
+use std::{
+    io::{stdout, BufReader},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use anyhow::{anyhow, bail};
 use clap::Parser;
@@ -48,16 +52,18 @@ impl Application {
         let accountant_actor = Accountant::new(account_manager.clone(), order_receiver);
         let account_handler = std::thread::spawn(move || accountant_actor.run());
 
+        // Create the reader actor and start it in a separate thread.
         let reader_actor = csv_reader::actor::Reader::new(order_sender, Box::new(buffer));
-
-        // Start the reader actor in a separate thread.
         let reader_handler = std::thread::spawn(move || reader_actor.run());
 
         reader_handler
             .join()
             .expect("Reader thread panicked")
             .and(account_handler.join().expect("Accountant thread panicked"))
-            .map_err(|e| anyhow!("Error joining threads: {:#?}", e))
+            .map_err(|e| anyhow!("Threads returned an error: {:#?}", e))?; // Join the threads and propagate any error.
+
+        // Export the accounts to a CSV file.
+        csv_reader::actor::AccountExporter::new(account_manager, Box::new(stdout())).run()
     }
 }
 fn main() -> Result<()> {

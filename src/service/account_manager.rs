@@ -37,7 +37,7 @@ pub enum TransactionError {
 /// [Transaction]s and applies them to the accounts.
 ///
 /// This service can be shared amongst multiple actors hence muliple threads.
-/// This means it will be stored in an [Arc] so its internal state must use
+/// This means it will be stored in an `Arc so its internal state must use
 /// interior mutability.
 /// For now we will use a simple hash map to store the accounts and transactions
 /// but adapters can be used to store the data in a database.
@@ -143,6 +143,11 @@ impl AccountManager {
         // If the lock returns an error, it means that a thread panicked while
         // holding the lock so this thread should panic as well.
         self.store.read().unwrap().get_account(&client_id)
+    }
+
+    /// Export the accounts.
+    pub fn get_accounts(&self) -> Vec<Account> {
+        self.store.read().unwrap().get_accounts()
     }
 
     /// Get the disputable transaction for the given transaction identifier.

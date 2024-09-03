@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context};
 use rust_decimal::Decimal;
+use serde::{ser::SerializeStruct, Serialize};
 use thiserror::Error;
 
 use crate::Result;
@@ -51,6 +52,22 @@ pub struct Account {
 
     /// The lock status of the account.
     pub locked: bool,
+}
+
+impl Serialize for Account {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Account", 5)?;
+        state.serialize_field("client", &self.client_id)?;
+        state.serialize_field("available", &self.available.round_dp(4).normalize())?;
+        state.serialize_field("held", &self.held.round_dp(4).normalize())?;
+        state.serialize_field("total", &self.total.round_dp(4).normalize())?;
+        state.serialize_field("locked", &self.locked)?;
+
+        state.end()
+    }
 }
 
 impl Account {

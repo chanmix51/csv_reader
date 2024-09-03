@@ -14,6 +14,9 @@ pub trait AccountStorage {
     /// Get an account by its client id.
     fn get_account(&self, client_id: &ClientId) -> Option<Account>;
 
+    /// Export the accounts
+    fn get_accounts(&self) -> Vec<Account>;
+
     /// Get a transaction by its identifier.
     fn get_transaction(&self, tx_id: &TxId) -> Option<Transaction>;
 
@@ -43,6 +46,10 @@ pub struct InMemoryAccountStorage {
 impl AccountStorage for InMemoryAccountStorage {
     fn get_account(&self, client_id: &ClientId) -> Option<Account> {
         self.accounts.get(client_id).cloned()
+    }
+
+    fn get_accounts(&self) -> Vec<Account> {
+        self.accounts.values().cloned().collect()
     }
 
     fn get_transaction(&self, tx_id: &TxId) -> Option<Transaction> {
