@@ -3,7 +3,9 @@
 
 use std::sync::{mpsc::Receiver, Arc};
 
-use crate::{model::TransactionOrder, service::AccountManager};
+use log::{debug, trace};
+
+use crate::{model::TransactionOrder, service::AccountManager, Result};
 
 /// The accountant actor is responsible for managing the transactions and
 /// accounts of the clients.
@@ -32,12 +34,19 @@ impl Accountant {
     /// It will NOT stop when the transactions fail but only log the error if any.
     /// The actor will stop when the order channel is closed which means that no
     /// more orders will be received.
-    pub fn run(&self) {
+    pub fn run(&self) -> Result<()> {
+        debug!("Accountant Actor started");
+
         for order in self.order_receiver.iter() {
+            trace!("Accountant Actor: received order: {:#?}", order);
+
             if let Err(error) = self.account_manager.process_order(order) {
-                log::info!("Error processing order: {}", error);
+                log::info!("Accountant Actor: Error processing order: {}", error);
             }
         }
+        debug!("Accountant Actor stopped");
+
+        Ok(())
     }
 }
 
@@ -56,9 +65,7 @@ mod tests {
         let (tx, rx) = channel();
         let account_manager = Arc::new(AccountManager::new(InMemoryAccountStorage::default()));
         let accountant = Accountant::new(account_manager.clone(), rx);
-        let handler = std::thread::spawn(move || {
-            accountant.run();
-        });
+        let handler = std::thread::spawn(move || accountant.run());
         tx.send(TransactionOrder {
             tx_id: 1,
             client_id: 1,
@@ -88,7 +95,7 @@ mod tests {
         })
         .unwrap();
         drop(tx);
-        handler.join().unwrap();
+        handler.join().unwrap().unwrap();
         let account = account_manager.get_account(1).unwrap();
 
         assert_eq!(account.available, Decimal::ONE_HUNDRED - Decimal::ONE);

@@ -7,6 +7,7 @@
 use std::{io::Read, sync::mpsc::Sender};
 
 use csv::ReaderBuilder;
+use log::debug;
 
 use crate::model::{CSVTransactionEntity, TransactionOrder};
 
@@ -33,6 +34,7 @@ impl Reader {
     /// The actor will read the CSV file line by line and send the transaction
     /// orders to the accountant actor through the order channel.
     pub fn run(self) -> crate::Result<()> {
+        debug!("Reader Actor started");
         let mut csv_reader = ReaderBuilder::new()
             .has_headers(true)
             .trim(csv::Trim::All)
