@@ -1,6 +1,6 @@
 use std::sync::RwLock;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use rust_decimal::Decimal;
 
 use crate::adapter::AccountStorage;
@@ -14,9 +14,10 @@ pub enum TransactionError {
     #[error("Transaction id='{0}' already in use.")]
     DuplicateTransactionId(TxId),
 
-    /// Related transactions has not been found.
+    /// Related transaction not found, either it does not exist or it was not a
+    /// disputable transaction.
     #[error("Related transaction id='{0}' not found.")]
-    TransactionNotFound(TxId),
+    RelatedTransactionNotFound(TxId),
 
     /// The related transaction is not disputed.
     #[error("Transaction id='{0}' is not disputed.")]
@@ -26,9 +27,9 @@ pub enum TransactionError {
     #[error("Transaction id='{0}' is already disputed")]
     AlreadyDisputedTransaction(TxId),
 
-    /// The disputed transaction is not a deposit.
-    #[error("Disputed transaction id='{0}' is not a deposit")]
-    DisputedTransactionNotDeposit(TxId),
+    /// The related transaction is not disputable.
+    #[error("Related transaction id='{0}' is not disputable (must be a deposit).")]
+    RelatedTransactionNotDisputable(TxId),
 }
 
 /// The [AccountManager] is responsible for managing the accounts and
@@ -101,18 +102,6 @@ impl AccountManager {
     pub fn process_order(&self, order: TransactionOrder) -> Result<Transaction> {
         let transaction: Transaction = order.into();
 
-        if self
-            .store
-            .read()
-            .unwrap()
-            .get_transaction(&transaction.tx_id)
-            .is_some()
-        {
-            return Err(anyhow::anyhow!(TransactionError::DuplicateTransactionId(
-                transaction.tx_id
-            )));
-        }
-
         let transaction = match transaction.kind {
             TransactionKind::Deposit(amount) => self.process_deposit(transaction, amount)?,
             TransactionKind::Withdrawal(amount) => self.process_withdrawal(transaction, amount)?,
@@ -156,8 +145,20 @@ impl AccountManager {
         self.store.read().unwrap().get_account(&client_id)
     }
 
+    /// Get the disputable transaction for the given transaction identifier.
+    fn get_disputable_transaction(&self, tx_id: TxId) -> Option<Transaction> {
+        self.store.read().unwrap().get_transaction(&tx_id)
+    }
+
     /// Process a deposit order.
     fn process_deposit(&self, transaction: Transaction, amount: Decimal) -> Result<Transaction> {
+        // if the transaction id is already in use, return an error.
+        if self.get_disputable_transaction(transaction.tx_id).is_some() {
+            return Err(anyhow::anyhow!(TransactionError::DuplicateTransactionId(
+                transaction.tx_id
+            )));
+        }
+
         // prefer to panic if the lock is poisoned ↓.
         let mut guard = self.store.write().unwrap();
         let mut account = guard
@@ -171,6 +172,13 @@ impl AccountManager {
 
     /// Process a withdrawal order.
     fn process_withdrawal(&self, transaction: Transaction, amount: Decimal) -> Result<Transaction> {
+        // if the transaction id is already in use, return an error.
+        if self.get_disputable_transaction(transaction.tx_id).is_some() {
+            return Err(anyhow::anyhow!(TransactionError::DuplicateTransactionId(
+                transaction.tx_id
+            )));
+        }
+
         let mut guard = self.store.write().unwrap();
         let mut account = guard
             .get_account(&transaction.client_id)
@@ -203,18 +211,18 @@ impl AccountManager {
                     guard.set_disputed(related_transaction_id, true)?;
                 }
                 _ => {
-                    return Err(anyhow!(TransactionError::DisputedTransactionNotDeposit(
+                    bail!(TransactionError::RelatedTransactionNotDisputable(
                         related_transaction_id
-                    )));
+                    ));
                 }
             }
         } else {
-            return Err(anyhow!(TransactionError::TransactionNotFound(
+            bail!(TransactionError::RelatedTransactionNotFound(
                 related_transaction_id
-            )));
+            ));
         }
 
-        guard.store_transaction(transaction)
+        Ok(transaction)
     }
 
     /// Process a resolve order.
@@ -239,7 +247,7 @@ impl AccountManager {
             guard.set_disputed(related_transaction_id, false)?;
         }
 
-        guard.store_transaction(transaction)
+        Ok(transaction)
     }
 
     /// Process a chargeback order.
@@ -264,7 +272,7 @@ impl AccountManager {
             guard.set_disputed(related_transaction_id, false)?;
         }
 
-        guard.store_transaction(transaction)
+        Ok(transaction)
     }
 }
 
@@ -278,7 +286,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_duplicate_transactions() {
+    fn test_duplicate_disputable_transactions() {
         let manager = AccountManager::new(InMemoryAccountStorage::default());
         let order = TransactionOrder {
             tx_id: 1,
@@ -286,6 +294,11 @@ mod tests {
             kind: TransactionKind::Deposit(Decimal::ONE),
         };
         let _tx = manager.process_order(order.clone()).unwrap();
+        let order = TransactionOrder {
+            tx_id: 1,
+            client_id: 2,
+            kind: TransactionKind::Withdrawal(Decimal::ONE),
+        };
         let error = manager.process_order(order).unwrap_err();
 
         assert!(matches!(
@@ -353,7 +366,7 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 2,
+            tx_id: 1,
             client_id: 1,
             kind: TransactionKind::Dispute(1),
         };
@@ -376,10 +389,10 @@ mod tests {
             kind: TransactionKind::Dispute(2),
         };
         let error = manager.process_order(order).unwrap_err();
-        println!("{error:#?}");
+
         assert!(matches!(
             error.downcast_ref::<TransactionError>(),
-            Some(TransactionError::TransactionNotFound(tx_id)) if tx_id == &2
+            Some(TransactionError::RelatedTransactionNotFound(tx_id)) if tx_id == &2
         ));
     }
 
@@ -399,14 +412,14 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 3,
+            tx_id: 2,
             client_id: 2,
             kind: TransactionKind::Dispute(2),
         };
         let error = manager.process_order(order).unwrap_err();
         assert!(matches!(
             error.downcast_ref::<TransactionError>(),
-            Some(TransactionError::DisputedTransactionNotDeposit(tx_id)) if tx_id == &2
+            Some(TransactionError::RelatedTransactionNotDisputable(tx_id)) if tx_id == &2
         ));
     }
 
@@ -420,14 +433,14 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 2,
-            client_id: 1,
+            tx_id: 1,
+            client_id: 2,
             kind: TransactionKind::Dispute(1),
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 3,
-            client_id: 1,
+            tx_id: 1,
+            client_id: 3,
             kind: TransactionKind::Dispute(1),
         };
         let error = manager.process_order(order).unwrap_err();
@@ -447,14 +460,14 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 2,
-            client_id: 1,
+            tx_id: 1,
+            client_id: 2,
             kind: TransactionKind::Dispute(1),
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 3,
-            client_id: 1,
+            tx_id: 1,
+            client_id: 2,
             kind: TransactionKind::Resolve(1),
         };
         let transaction = manager.process_order(order).unwrap();
@@ -477,8 +490,8 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 2,
-            client_id: 1,
+            tx_id: 1,
+            client_id: 2,
             kind: TransactionKind::Resolve(1),
         };
         let error = manager.process_order(order).unwrap_err();
@@ -513,13 +526,13 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 2,
+            tx_id: 1,
             client_id: 2,
             kind: TransactionKind::Dispute(1),
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 3,
+            tx_id: 1,
             client_id: 2,
             kind: TransactionKind::ChargeBack(1),
         };
@@ -544,8 +557,8 @@ mod tests {
         };
         let _tx = manager.process_order(order).unwrap();
         let order = TransactionOrder {
-            tx_id: 2,
-            client_id: 1,
+            tx_id: 1,
+            client_id: 2,
             kind: TransactionKind::ChargeBack(1),
         };
         let error = manager.process_order(order).unwrap_err();

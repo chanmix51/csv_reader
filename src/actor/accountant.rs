@@ -75,13 +75,13 @@ mod tests {
         // Dispute a non-existing transaction
         // This should not fail but log an error
         tx.send(TransactionOrder {
-            tx_id: 2,
+            tx_id: 3,
             client_id: 2,
             kind: TransactionKind::Dispute(3),
         })
         .unwrap();
         tx.send(TransactionOrder {
-            tx_id: 3,
+            tx_id: 2,
             client_id: 1,
             kind: TransactionKind::Withdrawal(Decimal::ONE),
         })
@@ -89,7 +89,7 @@ mod tests {
         // Send twice the same transaction
         // It must not be taken into account
         tx.send(TransactionOrder {
-            tx_id: 3,
+            tx_id: 2,
             client_id: 1,
             kind: TransactionKind::Withdrawal(Decimal::ONE),
         })

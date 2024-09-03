@@ -38,6 +38,10 @@ pub enum TransactionKindError {
     /// The transaction kind is unknown.
     #[error("Unknown transaction kind: '{0}'")]
     UnknownKind(String),
+
+    /// The transaction must have an amount.
+    #[error("Transaction amount is missing")]
+    MissingAmount,
 }
 
 impl TransactionKind {
@@ -188,7 +192,7 @@ pub struct CSVTransactionEntity {
     pub tx: TxId,
 
     /// The amount of the transaction.
-    pub amount: Decimal,
+    pub amount: Option<Decimal>,
 }
 
 impl TryFrom<CSVTransactionEntity> for TransactionOrder {
@@ -196,8 +200,20 @@ impl TryFrom<CSVTransactionEntity> for TransactionOrder {
 
     fn try_from(entity: CSVTransactionEntity) -> Result<Self, Self::Error> {
         let kind = match entity.r#type.as_str().to_lowercase().as_str() {
-            "deposit" => TransactionKind::deposit(entity.amount)?,
-            "withdrawal" => TransactionKind::withdrawal(entity.amount)?,
+            "deposit" => {
+                if let Some(amount) = entity.amount {
+                    TransactionKind::deposit(amount)?
+                } else {
+                    return Err(TransactionKindError::MissingAmount);
+                }
+            }
+            "withdrawal" => {
+                if let Some(amount) = entity.amount {
+                    TransactionKind::withdrawal(amount)?
+                } else {
+                    return Err(TransactionKindError::MissingAmount);
+                }
+            }
             "dispute" => TransactionKind::dispute(entity.tx),
             "resolve" => TransactionKind::resolve(entity.tx),
             "chargeback" => TransactionKind::chargeback(entity.tx),

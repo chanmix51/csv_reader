@@ -86,8 +86,9 @@ deposit, 1, 1, 1.0
 deposit, 2, 2, 2.0
 deposit, 1, 3, 2
 withdrawal, 1, 4, 1.500
-withdrawal, 2, 5, 3.0"#;
-        assert_run_ok(data, 5);
+withdrawal, 2, 5, 3.0
+dispute, 3, 3,"#;
+        assert_run_ok(data, 6);
     }
 
     #[test]
@@ -132,7 +133,7 @@ withdrawal, 2, 5, 3.0     "#;
 deposit, 1, 1, 1.0
 whatever, 1, 2, 2.0
 withdrawal, 1,   4, 1.500
-dispute, 2, 5, 1"#;
+dispute, 2, 5,"#;
         assert_run_ok(data, 3);
     }
 }
